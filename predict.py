@@ -27,30 +27,69 @@ class Predictor(BasePredictor):
         
         print("Loading HunyuanImage-3.0 model...")
         
+        # Check CUDA availability and set device mapping accordingly
+        if torch.cuda.is_available():
+            device_count = torch.cuda.device_count()
+            print(f"CUDA available with {device_count} GPU(s)")
+            
+            # Explicit device mapping for multi-GPU setups
+            if device_count > 1:
+                device_map = {}
+                # Distribute model layers across available GPUs
+                for i in range(device_count):
+                    device_map[f"model.layers.{i}"] = i % device_count
+                device_map["model.embed_tokens"] = 0
+                device_map["model.norm"] = device_count - 1
+                device_map["lm_head"] = device_count - 1
+            else:
+                device_map = {"": 0}  # Single GPU mapping
+        else:
+            print("CUDA not available, using CPU")
+            device_map = {"": "cpu"}
+        
         # Model loading configuration
         kwargs = {
-            "attn_implementation": "flash_attention_2",  # Use FlashAttention if available
             "trust_remote_code": True,
-            "torch_dtype": "auto",
-            "device_map": "auto",
-            "moe_impl": "flashinfer",  # Use FlashInfer for optimized inference
+            "torch_dtype": torch.float16 if torch.cuda.is_available() else torch.float32,
+            "device_map": device_map,
+            "low_cpu_mem_usage": True,
         }
+        
+        # Add optimizations if CUDA is available
+        if torch.cuda.is_available():
+            kwargs.update({
+                "attn_implementation": "flash_attention_2",  # Use FlashAttention if available
+                "moe_impl": "flashinfer",  # Use FlashInfer for optimized inference
+            })
         
         try:
             # Load the model
             self.model = AutoModelForCausalLM.from_pretrained(self.model_id, **kwargs)
             self.model.load_tokenizer(self.model_id)
-            print("Model loaded successfully with FlashAttention and FlashInfer optimizations")
+            print("Model loaded successfully with optimizations" if torch.cuda.is_available() else "Model loaded successfully on CPU")
         except Exception as e:
             print(f"Failed to load with optimizations: {e}")
             # Fallback to basic configuration
             kwargs.update({
-                "attn_implementation": "sdpa",
+                "attn_implementation": "eager" if torch.cuda.is_available() else "eager",
                 "moe_impl": "eager"
             })
-            self.model = AutoModelForCausalLM.from_pretrained(self.model_id, **kwargs)
-            self.model.load_tokenizer(self.model_id)
-            print("Model loaded successfully with basic configuration")
+            try:
+                self.model = AutoModelForCausalLM.from_pretrained(self.model_id, **kwargs)
+                self.model.load_tokenizer(self.model_id)
+                print("Model loaded successfully with fallback configuration")
+            except Exception as fallback_error:
+                print(f"Fallback also failed: {fallback_error}")
+                # Final fallback - CPU only
+                kwargs = {
+                    "trust_remote_code": True,
+                    "torch_dtype": torch.float32,
+                    "device_map": {"": "cpu"},
+                    "low_cpu_mem_usage": True,
+                }
+                self.model = AutoModelForCausalLM.from_pretrained(self.model_id, **kwargs)
+                self.model.load_tokenizer(self.model_id)
+                print("Model loaded successfully on CPU (final fallback)")
 
     def predict(
         self,
