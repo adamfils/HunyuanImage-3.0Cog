@@ -14,25 +14,16 @@ class Predictor(BasePredictor):
     def setup(self) -> None:
         """Load the model into memory to make running multiple predictions efficient"""
         
-        # Model configuration
-        self.model_id = "./HunyuanImage-3"
+        # Model configuration - use pre-downloaded weights from build time
+        self.model_id = "/app/model-weights"
         
-        # Download model if not already present
+        # Verify model weights exist (should be downloaded during build)
         if not os.path.exists(self.model_id):
-            print("Downloading HunyuanImage-3.0 model...")
-            try:
-                subprocess.run([
-                    "huggingface-cli", "download", 
-                    "tencent/HunyuanImage-3.0",
-                    "--local-dir", self.model_id
-                ], check=True)
-            except subprocess.CalledProcessError:
-                # Fallback to git clone if huggingface-cli fails
-                subprocess.run([
-                    "git", "clone", 
-                    "https://huggingface.co/tencent/HunyuanImage-3.0",
-                    self.model_id
-                ], check=True)
+            raise RuntimeError(
+                "Model weights not found at /app/model-weights. "
+                "They should have been downloaded during the build process. "
+                "Please check the cog.yaml run command."
+            )
         
         print("Loading HunyuanImage-3.0 model...")
         

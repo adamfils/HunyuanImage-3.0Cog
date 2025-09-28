@@ -29,5 +29,8 @@ build:
     - "huggingface-hub>=0.19.0"
     - "safetensors>=0.4.0"
     - "pydantic>=2.0.0"
+  run:
+    # Download model weights during build time for faster inference
+    - "huggingface-cli download tencent/HunyuanImage-3.0 --local-dir /app/model-weights --local-dir-use-symlinks False"
 
 predict: "predict.py:Predictor"

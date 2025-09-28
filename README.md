@@ -164,10 +164,17 @@ HunyuanImage-3.0Cog/
 
 ### Model Download
 
-The model weights (~170GB) are automatically downloaded from Hugging Face on first run. The download includes:
-- Model weights and configuration
+**🚀 Optimization**: Model weights (~170GB) are automatically downloaded during the Docker build process, not at runtime. This significantly reduces cold start times on Replicate.
+
+The download includes:
+- Model weights and configuration (downloaded to `/app/model-weights`)
 - Tokenizer files
 - Additional model components
+
+This build-time optimization means:
+- **Faster inference startup**: No waiting for model download
+- **Better Replicate performance**: Reduced cold start latency
+- **Reliable deployments**: Model availability guaranteed at runtime
 
 ## Troubleshooting
 
